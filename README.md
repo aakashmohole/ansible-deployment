@@ -11,6 +11,7 @@ The repo contains:
 - `hosts.ini`: Ansible inventory with target VM(s) and per-host `deploy_type`.
 - `install_gpu.sh` / `install_docker.sh`: basic shell hooks to distinguish GPU vs non-GPU machines; can be replaced with real installers.
 - `vault.yml`: Ansible Vault–encrypted variables file (secrets).
+- `c.txt`: vault password is in this file.
 
 ### 1. Prerequisites
 
@@ -173,16 +174,3 @@ You should:
 4. **Verify**
    - On the remote host: `docker ps` to check your container and any worker services.
    - Check watchtower and worker logs via `docker logs`.
-
-### 11. Handover Notes for Senior
-
-When handing this over, provide:
-
-- This `README.md`.
-- The **Ansible Vault password** (or path to `vault_pass.txt`), via a secure channel.
-- Any details about:
-  - Which hosts are used and their SSH keys / users.
-  - Your Hashicorp Vault `VAULT_ADDRESS` and how tokens are provisioned.
-  - The expected Celery queues (small / large / critical) and how they map to business workloads.
-
-With these pieces, your senior can adjust playbooks, extend the Python helpers, rotate secrets, and operate the deployment pipeline safely.
