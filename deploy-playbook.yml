@@ -1,0 +1,140 @@
+---
+# Usage: ansible-playbook -i hosts.ini deploy-playbook.yml
+
+- name: Deploy Docker Application using deploy.py
+  hosts: vms
+  become: yes
+  gather_facts: yes
+
+  vars_files:
+    - vault.yml
+
+  vars:
+    local_deploy_script: ./deploy.py
+    remote_deploy_script: /tmp/deploy.py
+
+    local_gpu_script: ./install_gpu.sh
+    local_docker_script: ./install_docker.sh
+    remote_gpu_script: /tmp/install_gpu.sh
+    remote_docker_script: /tmp/install_docker.sh
+
+    docker_image: "nginx:latest"
+    container_name: "app-container"
+
+  tasks:
+    - name: Check Python 3
+      command: python3 --version
+      register: python_version
+      changed_when: false
+      failed_when: false
+
+    - debug:
+        msg: "Python version: {{ python_version.stdout }}"
+
+    - name: Check Docker
+      command: docker --version
+      register: docker_version
+      changed_when: false
+      failed_when: false
+
+    - debug:
+        msg: "Docker version: {{ docker_version.stdout }}"
+      when: docker_version.rc == 0
+
+    # 🔹 NEW: GPU check
+    - name: Check GPU
+      command: nvidia-smi
+      register: gpu_check
+      ignore_errors: yes
+      changed_when: false
+
+    # 🔹 NEW: copy scripts
+    - name: Copy GPU install script
+      copy:
+        src: "{{ local_gpu_script }}"
+        dest: "{{ remote_gpu_script }}"
+        mode: "0755"
+      when: gpu_check.rc == 0
+
+    - name: Copy Docker install script
+      copy:
+        src: "{{ local_docker_script }}"
+        dest: "{{ remote_docker_script }}"
+        mode: "0755"
+      when: gpu_check.rc != 0
+
+    # 🔹 NEW: run correct script
+    - name: Run GPU install script
+      command: bash "{{ remote_gpu_script }}"
+      when: gpu_check.rc == 0
+
+    - name: Run Docker install script
+      command: bash "{{ remote_docker_script }}"
+      when: gpu_check.rc != 0
+
+    - name: Install Docker if missing
+      block:
+        - name: Install Docker on Amazon Linux
+          yum:
+            name: docker
+            state: present
+          when: ansible_os_family == "RedHat"
+
+        - name: Start Docker on Amazon Linux
+          systemd:
+            name: docker
+            state: started
+            enabled: yes
+          when: ansible_os_family == "RedHat"
+
+        - name: Install Docker on Debian
+          apt:
+            update_cache: yes
+            name: docker.io
+            state: present
+          when: ansible_os_family == "Debian"
+
+        - name: Start Docker on Debian
+          systemd:
+            name: docker
+            state: started
+            enabled: yes
+          when: ansible_os_family == "Debian"
+      when: docker_version.rc != 0
+
+    - name: Copy deploy.py
+      copy:
+        src: "{{ local_deploy_script }}"
+        dest: "{{ remote_deploy_script }}"
+        mode: "0755"
+
+    - name: Set deploy flags based on deploy_type
+      set_fact:
+        deploy_flags: >-
+          {% if deploy_type | default('') == 'large' %}
+          --deploy_large_job
+          {% elif deploy_type | default('') == 'critical' %}
+          --deploy_critical_job
+          {% else %}
+          --deploy_small_job
+          {% endif %}
+
+    - name: Run deploy.py
+      command: >
+        python3 {{ remote_deploy_script }}
+        {{ deploy_flags | default('') }}
+        --image {{ docker_image }}
+        --container-name {{ container_name }}
+      register: deploy_result
+
+    - name: Show output
+      debug:
+        var: deploy_result.stdout_lines
+
+    - name: Verify container
+      command: sudo docker ps --filter "name={{ container_name }}"
+      register: container_status
+      changed_when: false
+
+    - debug:
+        msg: "Container running: {{ container_status.stdout }}"

@@ -1,0 +1,3 @@
+vm pass = aakash
+
+vault pass = 1234@a

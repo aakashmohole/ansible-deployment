@@ -1,0 +1,12 @@
+version: '3.3'
+services:
+    watchtower:
+        image: containrrr/watchtower
+        volumes:
+        - /var/run/docker.sock:/var/run/docker.sock
+        - ~/.docker/config.json:/config.json
+        environment:
+            WATCHTOWER_NOTIFICATION_REPORT: 'true'
+            WATCHTOWER_NOTIFICATION_URL: slack://watchtower@T02DZT0TD27/B07RLPDKETB/tQo477Wsc48pXcSbkrf9qiRA
+            WATCHTOWER_NOTIFICATION_TEMPLATE: "{{- if .Report -}}\n                    \\        {{- with .Report -}}\n            {{len .Scanned}}                \\ Scanned, {{len .Updated}} Updated, {{len .Failed}} Failed\n                \\            {{- range .Updated}}\n            - {{.Name}}                \\ ({{.ImageName}}): {{.CurrentImageID.ShortID}} updated                \\ to {{.LatestImageID.ShortID}}\n            {{- end -}}\n                \\            {{- range .Fresh}}\n            - {{.Name}}                \\ ({{.ImageName}}): {{.State}}\n            {{- end -}}\n                \\            {{- range .Skipped}}\n            - {{.Name}}                \\ ({{.ImageName}}): {{.State}}: {{.Error}}\n                           \\ {{- end -}}\n            {{- range .Failed}}\n                       \\     - {{.Name}} ({{.ImageName}}): {{.State}}: {{.Error}}\n                \\            {{- end -}}\n            {{- end -}}\n                    \\        {{- else -}}\n\
+                \            {{range .Entries -}}{{.Message}}{{\"                \\n\"}}{{- end -}}\n            {{- end -}}"
